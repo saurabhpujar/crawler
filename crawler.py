@@ -1,14 +1,15 @@
 import requests
 from bs4 import BeautifulSoup
 import urllib2
-import sys;
-reload(sys);
+import re
+import sys
+reload(sys)
 sys.setdefaultencoding("utf8")
 
 def bbc_crawler():
-    url = 'http://www.bbc.com/'
+    url = 'http://www.bbc.com'
     source_code = urllib2.urlopen(url).read()
-    soup = BeautifulSoup(source_code)
+    soup = BeautifulSoup(source_code,"html.parser")
     count = 0;
     for link in soup.findAll('a', {'class': 'media__link'}):
         href = link.get('href')
@@ -20,14 +21,14 @@ def bbc_crawler():
         if href.startswith( '/' ) == True:
             href = url + href
         title = link.text.strip()
-        count = count + 1
+        count += 1
         bbc_getContent(href,url,title, count)
 
 def bbc_getContent(item_url,seedUrl,title,count):
     try:
         #logging.info('Inside inner method')
         source_code = urllib2.urlopen(item_url).read()
-        soup = BeautifulSoup(source_code)
+        soup = BeautifulSoup(source_code,"html.parser")
         #resource = NewsData(parent=newsData_key(seedUrl))
         #resource.seedUrl = seedUrl
         #resource.url = item_url
@@ -59,14 +60,16 @@ def bbc_getContent(item_url,seedUrl,title,count):
         #resource.tags = ct
         tagList = ",".join(map(str,ct))
         #resource.put()
+        writeIntoFile("data/bbc/"+str(count)+".xml",seedUrl,item_url,title, desc,tagList)
 
     except Exception as inst:
         #logging.info(inst)
         #logging.info('Inside exception')
         pass
 
-    print "Making xml file"
-    resource = open(str(count)+".xml", "wb")
+def writeIntoFile(loc,seedUrl,item_url,title, desc,tagList):
+    print "Making " + loc
+    resource = open(loc, "wb")
     resource.write("<seedurl>")
     resource.write("\n\t"+seedUrl)
     resource.write("\n</seedurl>")
@@ -88,5 +91,72 @@ def bbc_getContent(item_url,seedUrl,title,count):
     resource.write("\n</tags>")
 
     resource.close()
-    
-bbc_crawler()
+
+def guardian_crawler():
+    url = 'http://www.theguardian.com/us'
+    source_code = urllib2.urlopen(url).read()
+    soup = BeautifulSoup(source_code)
+    count = 0
+    links = []
+    for link in soup.findAll('a', {'data-link-name': 'article'}):
+        href = link.get('href')
+        #This is to ignore video and image galleries
+        if '/thecounted' in href or '/video/' in href:
+            continue
+        links.append(href)
+
+    links = set(links)
+
+    for l in links:
+        count += 1
+        guardian_getContent(url, l,count)
+
+def guardian_getContent(seedUrl, item_url, count):
+    try:
+        #logging.info('Inside inner method')
+        source_code = urllib2.urlopen(item_url).read()
+        soup = BeautifulSoup(source_code,"html.parser")
+        #resource = NewsData(parent=newsData_key(seedUrl))
+        #resource.seedUrl = seedUrl
+        #resource.url = item_url
+        #resource.title = title
+        desc = ''
+        title = soup.title.string
+        title = title.split("|")[0].strip()
+
+        for para in soup.findAll('p', {'class' : ''}):
+            desc += para.text
+
+        #logging.info("Description : "+desc)
+        #resource.description = desc
+
+        ct = []
+        for tag in soup.findAll('meta', {'name' : 'keywords'}):
+            content = tag.attrs.get("content").lower()
+            contentTag = content.split(",")
+            for t in contentTag:
+                ct.append(t.strip())
+
+        #logging.info("Tags : "+ct)
+        #resource.tags = ct
+        tagList = ",".join(map(str,ct))
+        #resource.put()
+
+        # print 'Title : '+title
+        # print 'Seed : '+ seedUrl
+        # print 'Link : '+item_url
+        # print 'Title : '+title
+        # print 'Desc : '+desc
+        # print 'Tag List : '+tagList
+        writeIntoFile("data/guardian/"+str(count)+".xml",seedUrl.strip(),item_url.strip(),title.strip(), desc.strip(),tagList)
+
+    except Exception as inst:
+        #logging.info(inst)
+        #logging.info('Inside exception')
+        pass
+
+def crawl():
+    bbc_crawler()
+    guardian_crawler()
+
+crawl()
